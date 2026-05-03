@@ -1,0 +1,524 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema", "postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  extensions = [uuidOssp(map: "uuid-ossp"), pgTrgm(map: "pg_trgm")]
+  schemas    = ["auth", "core", "learn", "commerce", "comms"]
+}
+
+// ─────────────────────────────────────────────
+// auth schema
+// ─────────────────────────────────────────────
+
+model User {
+  id               String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  email            String     @unique @db.VarChar(255)
+  phone            String?    @unique @db.VarChar(20)
+  password_hash    String
+  role             UserRole   @default(student)
+  status           UserStatus @default(pending_verification)
+  email_verified   Boolean    @default(false)
+  last_login_at    DateTime?
+  last_login_ip    String?    @db.VarChar(45)
+  created_at       DateTime   @default(now())
+  updated_at       DateTime   @updatedAt
+
+  profile         Profile?
+  student_profile StudentProfile?
+  teacher_profile TeacherProfile?
+  sessions        Session[]
+  courses         Course[]
+  enrollments     Enrollment[]
+  media           Media[]
+  notifications   Notification[]
+
+  @@index([role, status])
+  @@index([email])
+  @@map("users")
+  @@schema("auth")
+}
+
+model Session {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id       String   @db.Uuid
+  refresh_token String   @unique
+  is_revoked    Boolean  @default(false)
+  ip_address    String?  @db.VarChar(45)
+  device_info   Json?
+  expires_at    DateTime
+  created_at    DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, expires_at])
+  @@index([refresh_token])
+  @@map("sessions")
+  @@schema("auth")
+}
+
+enum UserRole {
+  student
+  teacher
+  parent
+  admin
+  super_admin
+
+  @@schema("auth")
+}
+
+enum UserStatus {
+  active
+  inactive
+  suspended
+  pending_verification
+
+  @@schema("auth")
+}
+
+// ─────────────────────────────────────────────
+// core schema
+// ─────────────────────────────────────────────
+
+model Profile {
+  id                  String    @id @db.Uuid
+  first_name          String    @db.VarChar(80)
+  last_name           String    @db.VarChar(80)
+  display_name        String?   @db.VarChar(120)
+  avatar_url          String?
+  cover_url           String?
+  bio                 String?   @db.Text
+  date_of_birth       DateTime? @db.Date
+  gender              String?   @db.VarChar(16)
+  country             String    @default("BD") @db.Char(2)
+  city                String?   @db.VarChar(80)
+  timezone            String    @default("Asia/Dhaka") @db.VarChar(64)
+  language            String    @default("bn") @db.VarChar(8)
+  notifications_prefs Json      @default("{}")
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+
+  user User @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+  @@schema("core")
+}
+
+model StudentProfile {
+  id                  String   @id @db.Uuid
+  grade_level         String?  @db.VarChar(50)
+  board               String?  @db.VarChar(100)
+  school_name         String?  @db.VarChar(255)
+  interested_subjects String[]
+  points              Int      @default(0)
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  user User @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  @@index([grade_level])
+  @@index([board])
+  @@map("student_profiles")
+  @@schema("core")
+}
+
+model TeacherProfile {
+  id               String   @id @map("user_id") @db.Uuid
+  headline         String?  @db.VarChar(200)
+  specializations  String[]
+  qualifications   Json     @default("[]")
+  rating_avg       Decimal  @default(0) @db.Decimal(3, 2)
+  rating_count     Int      @default(0)
+  total_students   Int      @default(0)
+  total_courses    Int      @default(0)
+  verified         Boolean  @default(false)
+  id_verified      Boolean  @default(false)
+  is_featured      Boolean  @default(false)
+  is_flexible_time Boolean  @default(false)
+  session_types    Json     @default("[]")
+  experience_years Int?
+  updated_at       DateTime @updatedAt
+
+  user           User                  @relation(fields: [id], references: [id], onDelete: Cascade)
+  educations     TeacherEducation[]
+  experiences    TeacherExperience[]
+  teachingStyles TeachingStyle[]
+  availability   TeacherAvailability[]
+  verifications  TeacherVerification[]
+  subjects       TeacherSubject[]
+  gradeLevels    TeacherGradeLevel[]
+
+  @@index([verified, is_featured])
+  @@index([rating_avg])
+  @@map("teacher_profiles")
+  @@schema("core")
+}
+
+model TeacherEducation {
+  id          Int      @id @default(autoincrement())
+  teacher_id  String   @map("user_id") @db.Uuid
+  type        String   @default("degree") @db.VarChar(20)
+  title       String   @db.VarChar(200)
+  institution String?  @db.VarChar(200)
+  start_year  Int?
+  end_year    Int?
+  is_current  Boolean  @default(false)
+  sort_order  Int      @default(0)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  teacher TeacherProfile @relation(fields: [teacher_id], references: [id], onDelete: Cascade)
+
+  @@index([teacher_id])
+  @@map("teacher_educations")
+  @@schema("core")
+}
+
+model TeacherExperience {
+  id            Int      @id @default(autoincrement())
+  teacher_id    String   @map("user_id") @db.Uuid
+  role          String   @default("teacher") @map("role_type") @db.VarChar(30)
+  started_month Int?     @map("start_month")
+  started_year  Int?     @map("start_year")
+  description   String?  @db.Text
+  expertise     Json     @default("[]") @map("expertise_tags")
+  is_current    Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  teacher TeacherProfile @relation(fields: [teacher_id], references: [id], onDelete: Cascade)
+
+  @@index([teacher_id])
+  @@map("teacher_experiences")
+  @@schema("core")
+}
+
+model Subject {
+  id        Int     @id @default(autoincrement())
+  name      String  @unique @db.VarChar(120)
+  color     String? @db.VarChar(7)
+  icon      String? @db.VarChar(64)
+  is_active Boolean @default(true)
+
+  teachers TeacherSubject[]
+
+  @@map("subjects")
+  @@schema("core")
+}
+
+model TeacherSubject {
+  teacher_id String   @map("user_id") @db.Uuid
+  subject_id Int
+  created_at DateTime @default(now())
+
+  teacher TeacherProfile @relation(fields: [teacher_id], references: [id], onDelete: Cascade)
+  subject Subject        @relation(fields: [subject_id], references: [id], onDelete: Cascade)
+
+  @@id([teacher_id, subject_id])
+  @@map("teacher_subjects")
+  @@schema("core")
+}
+
+model GradeLevel {
+  id   Int    @id @default(autoincrement())
+  name String @unique @db.VarChar(255)
+
+  teachers TeacherGradeLevel[]
+
+  @@map("grade_level")
+  @@schema("core")
+}
+
+model TeacherGradeLevel {
+  teacher_id     String   @map("user_id") @db.Uuid
+  grade_level_id Int
+  created_at     DateTime @default(now())
+
+  teacher    TeacherProfile @relation(fields: [teacher_id], references: [id], onDelete: Cascade)
+  gradeLevel GradeLevel     @relation(fields: [grade_level_id], references: [id], onDelete: Cascade)
+
+  @@id([teacher_id, grade_level_id])
+  @@map("teacher_grade_levels")
+  @@schema("core")
+}
+
+model TeachingStyle {
+  id          Int      @id @default(autoincrement())
+  teacher_id  String   @map("user_id") @db.Uuid
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  color       String?  @db.VarChar(20)
+  sort_order  Int      @default(0)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  teacher TeacherProfile @relation(fields: [teacher_id], references: [id], onDelete: Cascade)
+
+  @@index([teacher_id])
+  @@map("teacher_teaching_styles")
+  @@schema("core")
+}
+
+model TeacherAvailability {
+  id          Int      @id @default(autoincrement())
+  teacher_id  String   @map("user_id") @db.Uuid
+  day_of_week Int
+  time_slot   DateTime @db.Time(0)
+  created_at  DateTime @default(now())
+
+  teacher TeacherProfile @relation(fields: [teacher_id], references: [id], onDelete: Cascade)
+
+  @@unique([teacher_id, day_of_week, time_slot])
+  @@index([teacher_id])
+  @@map("teacher_availability")
+  @@schema("core")
+}
+
+model TeacherVerification {
+  id             Int       @id @default(autoincrement())
+  teacher_id     String    @map("user_id") @db.Uuid
+  doc_type       String    @db.VarChar(30)
+  doc_url        String
+  status         String    @default("pending") @db.VarChar(20)
+  reviewed_by    String?   @db.Uuid
+  reviewer_notes String?
+  reviewed_at    DateTime?
+  submitted_at   DateTime  @default(now())
+
+  teacher TeacherProfile @relation(fields: [teacher_id], references: [id], onDelete: Cascade)
+
+  @@index([teacher_id])
+  @@map("teacher_verifications")
+  @@schema("core")
+}
+
+model Media {
+  id            String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  uploader_id   String    @db.Uuid
+  storage_key   String    @unique
+  original_name String
+  mime_type     String    @db.VarChar(100)
+  file_size     BigInt
+  media_type    MediaType
+  metadata      Json      @default("{}")
+  created_at    DateTime  @default(now())
+
+  uploader  User             @relation(fields: [uploader_id], references: [id])
+  lessons   Lesson[]         @relation("LessonVideo")
+  resources LessonResource[]
+
+  @@index([uploader_id, media_type])
+  @@map("media")
+  @@schema("core")
+}
+
+enum MediaType {
+  image
+  video
+  document
+  audio
+
+  @@schema("core")
+}
+
+// ─────────────────────────────────────────────
+// learn schema
+// ─────────────────────────────────────────────
+
+model Course {
+  id                String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  teacher_id        String       @db.Uuid
+  title             String       @db.VarChar(255)
+  slug              String       @unique @db.VarChar(255)
+  short_description String?      @db.VarChar(500)
+  description       String?      @db.Text
+  thumbnail_url     String?
+  status            CourseStatus @default(draft)
+  is_free           Boolean      @default(false)
+  price             Decimal?     @db.Decimal(10, 2)
+  grade_level       String?      @db.VarChar(50)
+  subject           String?      @db.VarChar(100)
+  enrolled_count    Int          @default(0)
+  rating_avg        Decimal      @default(0) @db.Decimal(3, 2)
+  total_lessons     Int          @default(0)
+  deleted_at        DateTime?
+  created_at        DateTime     @default(now())
+  updated_at        DateTime     @updatedAt
+
+  teacher     User         @relation(fields: [teacher_id], references: [id])
+  sections    Section[]
+  lessons     Lesson[]
+  enrollments Enrollment[]
+  reviews     Review[]
+
+  @@index([teacher_id, status])
+  @@index([status, grade_level, subject])
+  @@index([slug])
+  @@map("courses")
+  @@schema("learn")
+}
+
+enum CourseStatus {
+  draft
+  pending_review
+  live
+  archived
+
+  @@schema("learn")
+}
+
+model Section {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  course_id  String   @db.Uuid
+  title      String   @db.VarChar(255)
+  order_num  Int      @default(0)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  course  Course   @relation(fields: [course_id], references: [id], onDelete: Cascade)
+  lessons Lesson[]
+
+  @@index([course_id, order_num])
+  @@map("sections")
+  @@schema("learn")
+}
+
+model Lesson {
+  id               String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  course_id        String     @db.Uuid
+  section_id       String?    @db.Uuid
+  title            String     @db.VarChar(255)
+  lesson_type      LessonType @default(video)
+  video_id         String?    @db.Uuid
+  content          String?    @db.Text
+  duration_sec     Int?
+  order_num        Int        @default(0)
+  is_free_preview  Boolean    @default(false)
+  created_at       DateTime   @default(now())
+  updated_at       DateTime   @updatedAt
+
+  course    Course           @relation(fields: [course_id], references: [id], onDelete: Cascade)
+  section   Section?         @relation(fields: [section_id], references: [id])
+  video     Media?           @relation("LessonVideo", fields: [video_id], references: [id])
+  resources LessonResource[]
+  progress  LessonProgress[]
+
+  @@index([course_id, order_num])
+  @@index([section_id])
+  @@map("lessons")
+  @@schema("learn")
+}
+
+enum LessonType {
+  video
+  text
+  quiz
+  assignment
+  live
+
+  @@schema("learn")
+}
+
+model LessonResource {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  lesson_id  String   @db.Uuid
+  media_id   String   @db.Uuid
+  title      String   @db.VarChar(255)
+  created_at DateTime @default(now())
+
+  lesson Lesson @relation(fields: [lesson_id], references: [id], onDelete: Cascade)
+  media  Media  @relation(fields: [media_id], references: [id])
+
+  @@map("lesson_resources")
+  @@schema("learn")
+}
+
+model LessonProgress {
+  id                String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  student_id        String    @db.Uuid
+  lesson_id         String    @db.Uuid
+  last_position_sec Int       @default(0)
+  watch_seconds     Int       @default(0)
+  completed         Boolean   @default(false)
+  completed_at      DateTime?
+  updated_at        DateTime  @updatedAt
+
+  lesson Lesson @relation(fields: [lesson_id], references: [id], onDelete: Cascade)
+
+  @@unique([student_id, lesson_id])
+  @@index([student_id])
+  @@map("lesson_progress")
+  @@schema("learn")
+}
+
+model Review {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  course_id  String   @db.Uuid
+  student_id String   @db.Uuid
+  rating     Int
+  comment    String?  @db.Text
+  created_at DateTime @default(now())
+
+  course Course @relation(fields: [course_id], references: [id], onDelete: Cascade)
+
+  @@unique([course_id, student_id])
+  @@map("reviews")
+  @@schema("learn")
+}
+
+// ─────────────────────────────────────────────
+// commerce schema
+// ─────────────────────────────────────────────
+
+model Enrollment {
+  id           String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  student_id   String           @db.Uuid
+  course_id    String           @db.Uuid
+  status       EnrollmentStatus @default(active)
+  progress_pct Int              @default(0) @db.SmallInt
+  enrolled_at  DateTime         @default(now())
+  expires_at   DateTime?
+
+  student User   @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  course  Course @relation(fields: [course_id], references: [id])
+
+  @@unique([student_id, course_id])
+  @@index([student_id, status])
+  @@index([course_id])
+  @@map("enrollments")
+  @@schema("commerce")
+}
+
+enum EnrollmentStatus {
+  active
+  expired
+  cancelled
+
+  @@schema("commerce")
+}
+
+// ─────────────────────────────────────────────
+// comms schema
+// ─────────────────────────────────────────────
+
+model Notification {
+  id      String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id String    @db.Uuid
+  title   String    @db.VarChar(255)
+  body    String    @db.Text
+  type    String    @db.VarChar(50)
+  data    Json      @default("{}")
+  is_read Boolean   @default(false)
+  read_at DateTime?
+  sent_at DateTime  @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, is_read, sent_at])
+  @@map("notifications")
+  @@schema("comms")
+}

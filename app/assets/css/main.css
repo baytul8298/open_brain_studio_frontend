@@ -1,0 +1,80 @@
+/* ─── Google Fonts ───────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Reusable component classes ────────────────────────────── */
+@layer components {
+  /* Auth layout card (right-panel form wrapper) */
+  .auth-form-container {
+    @apply w-full max-w-[390px] relative z-10;
+  }
+
+  /* Standard form input (with left icon padding) */
+  .form-input {
+    @apply w-full py-[13px] px-[14px] pl-[42px] rounded-xl border-[1.5px] border-transparent
+           bg-warm text-ink text-[0.9rem] placeholder-muted font-sans
+           outline-none transition-all duration-200;
+  }
+  .form-input:focus {
+    @apply border-gold bg-white shadow-[0_0_0_4px_rgba(201,137,60,0.10)];
+  }
+
+  /* Primary gradient CTA button */
+  .btn-primary {
+    @apply w-full py-[14px] rounded-xl font-sans text-[0.95rem] font-medium tracking-wide
+           text-white border-none cursor-pointer relative overflow-hidden
+           transition-all duration-200
+           bg-gradient-to-br from-gold to-rust;
+  }
+  .btn-primary:hover  { @apply -translate-y-0.5 shadow-[0_10px_30px_rgba(184,75,47,0.35)]; }
+  .btn-primary:active { @apply translate-y-0; }
+  .btn-primary:disabled { @apply opacity-60 cursor-not-allowed translate-y-0 shadow-none; }
+
+  /* Social login button */
+  .btn-social {
+    @apply flex items-center justify-center gap-[9px] py-[11px] px-3 rounded-[11px]
+           font-sans text-[0.84rem] font-medium text-ink bg-warm
+           border-[1.5px] border-[#e0d8cc] cursor-pointer
+           transition-all duration-200;
+  }
+  .btn-social:hover { @apply bg-white border-gold-light -translate-y-px; }
+
+  /* Form field label */
+  .form-label {
+    @apply block text-[0.78rem] font-medium text-ink mb-2 tracking-[0.04em];
+  }
+
+  /* Error / alert box */
+  .form-error {
+    @apply p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm;
+  }
+}
+
+/* ─── Keyframe animations ────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes floatCard {
+  from { opacity: 0; transform: translateY(-50%) translateX(30px); }
+  to   { opacity: 1; transform: translateY(-50%) translateX(0); }
+}
+
+@keyframes bob {
+  0%, 100% { transform: translateY(calc(-50% + 0px)); }
+  50%       { transform: translateY(calc(-50% - 10px)); }
+}
+
+.anim-fade-up            { animation: fadeUp .7s ease both; }
+.anim-fade-up-d1         { animation: fadeUp .7s .10s ease both; }
+.anim-fade-up-d2         { animation: fadeUp .7s .20s ease both; }
+.anim-fade-up-d3         { animation: fadeUp .7s .28s ease both; }
+.anim-fade-up-d4         { animation: fadeUp .7s .35s ease both; }
+.anim-fade-up-d5         { animation: fadeUp .7s .40s ease both; }
+.anim-fade-up-d6         { animation: fadeUp .7s .48s ease both; }
+.anim-fade-up-d7         { animation: fadeUp .7s .56s ease both; }
+.anim-fade-up-d8         { animation: fadeUp .7s .62s ease both; }

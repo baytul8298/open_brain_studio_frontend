@@ -1,0 +1,33 @@
+There are some problems in the "Teaching Style" section on the "app/pages/teacher/profile.vue" page, respectively:
+1. The Teaching Style modal has Name, Description fields but no color field, the image of the modal is given which is marked with a red mark. Image: D:\laragon\www\open_brain_studio\teching-style-add-problem.jpg
+
+2. While editing, each item has a delete button, but there is no edit button. Which is marked with a red mark. Image: D:\laragon\www\open_brain_studio\edit_button.jpg
+
+There are several more attributes missing, see them from the specific "Teaching Style" section from the "D:\laragon\www\open_brain_studio\teacher-profile.html" page.
+
+3. For some reason, the data of the "Teaching Style" section is not being stored. The data of all other sections is being stored/updated properly.
+
+4. Validation message is not showing. You should see the validation message, if the validation message comes in the response.
+
+If the validation response comes, the response:
+//422 ->any port show here, error wise ( Unprocessable Content)
+{
+"success": false,
+"message": "The name field is required."
+}
+
+If the response is successful, the response is:
+{
+"success": false,
+"message": "Teaching style added.",
+"style": {
+"name": "dom",
+"description": "Focus on student engagement through discussion and problem solving.",
+"color": "#3498db",
+"user_id": "4f9e6836-7d9b-42b3-b78e-8de7e228d531",
+"sort_order": 3,
+"updated_at": "2026-05-02T18:23:34.000000Z",
+"created_at": "2026-05-02T18:23:34.000000Z",
+"id": 14
+}
+}
