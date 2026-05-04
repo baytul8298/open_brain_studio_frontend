@@ -1543,15 +1543,6 @@ const yearRange = computed(() => {
 </script>
 
 <style scoped>
-/* ── Variables ─────────────────────────────────────────── */
-:root{
-  --ink:#0e0b07;--cream:#faf6ef;--warm:#f0e8d6;--warm2:#e8ddc8;
-  --gold:#c9893c;--gold-light:#e8b96a;--gold-pale:rgba(201,137,60,.1);
-  --rust:#b84b2f;--muted:#8a7f72;--border:#e0d8cc;--card:#fff;
-  --green:#3a9e6f;--blue:#3a6b9e;--purple:#7a5cbf;--teal:#2a8a8a;
-  --red:#c53030;
-}
-
 /* ── TOPBAR ─────────────────────────────────────────────── */
 .topbar{position:sticky;top:0;z-index:50;background:rgba(250,246,239,.95);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:0 32px;height:64px;display:flex;align-items:center;gap:12px}
 .tb-breadcrumb{flex:1;display:flex;align-items:center;gap:6px;font-size:.84rem;color:var(--muted)}

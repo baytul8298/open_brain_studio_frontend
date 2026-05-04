@@ -5,6 +5,26 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Global CSS custom properties ──────────────────────────── */
+:root {
+  --ink: #0e0b07;
+  --cream: #faf6ef;
+  --warm: #f0e8d6;
+  --warm2: #e8ddc8;
+  --gold: #c9893c;
+  --gold-light: #e8b96a;
+  --gold-pale: rgba(201, 137, 60, .1);
+  --rust: #b84b2f;
+  --muted: #8a7f72;
+  --border: #e0d8cc;
+  --card: #fff;
+  --green: #3a9e6f;
+  --blue: #3a6b9e;
+  --purple: #7a5cbf;
+  --teal: #2a8a8a;
+  --red: #c53030;
+}
+
 /* ─── Reusable component classes ────────────────────────────── */
 @layer components {
   /* Auth layout card (right-panel form wrapper) */
