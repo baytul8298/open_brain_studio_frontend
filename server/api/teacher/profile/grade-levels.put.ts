@@ -1,31 +1,12 @@
-import { prisma } from '../../../utils/prisma'
-import { handleApiError } from '../../../utils/errors'
+import { requireToken, laravelFetch } from '../../../utils/laravel'
 
 export default defineEventHandler(async (event) => {
-  try {
-    const user = event.context.user
-    if (!user) throw createError({ statusCode: 401, message: 'Unauthorized' })
+  const user = event.context.user
+  if (!user) throw createError({ statusCode: 401, message: 'Unauthorized' })
 
-    const body = await readBody(event)
-    const grade_level_ids: number[] = Array.isArray(body.grade_level_ids) ? body.grade_level_ids.map(Number) : []
+  const token = await requireToken(user.id)
+  const body  = await readBody(event)
 
-    await prisma.$transaction([
-      prisma.teacherGradeLevel.deleteMany({ where: { teacher_id: user.id } }),
-      ...(grade_level_ids.length > 0
-        ? [prisma.teacherGradeLevel.createMany({
-            data: grade_level_ids.map(id => ({ teacher_id: user.id, grade_level_id: id })),
-            skipDuplicates: true,
-          })]
-        : []),
-    ])
-
-    const teacherGrades = await prisma.teacherGradeLevel.findMany({
-      where: { teacher_id: user.id },
-      include: { gradeLevel: true },
-    })
-
-    return { grade_levels: teacherGrades.map(tg => tg.gradeLevel) }
-  } catch (err) {
-    handleApiError(err)
-  }
+  // Forward { grade_level_ids } — Laravel's updateSubjects handles partial updates
+  return laravelFetch(token, 'teacher/profile/subjects', { method: 'PUT', body })
 })

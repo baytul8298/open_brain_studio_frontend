@@ -1,34 +1,11 @@
-import { prisma } from '../../../utils/prisma'
-import { handleApiError } from '../../../utils/errors'
+import { requireToken, laravelFetch } from '../../../utils/laravel'
 
 export default defineEventHandler(async (event) => {
-  try {
-    const user = event.context.user
-    if (!user) throw createError({ statusCode: 401, message: 'Unauthorized' })
+  const user = event.context.user
+  if (!user) throw createError({ statusCode: 401, message: 'Unauthorized' })
 
-    const body = await readBody(event)
-    if (!body.title || !body.institution) {
-      throw createError({ statusCode: 422, message: 'Title and institution are required' })
-    }
+  const token = await requireToken(user.id)
+  const body  = await readBody(event)
 
-    await prisma.teacherEducation.create({
-      data: {
-        teacher_id: user.id,
-        type: body.type || 'degree',
-        title: body.title,
-        institution: body.institution,
-        start_year: body.start_year ? Number(body.start_year) : null,
-        end_year: body.end_year ? Number(body.end_year) : null,
-      },
-    })
-
-    const educations = await prisma.teacherEducation.findMany({
-      where: { teacher_id: user.id },
-      orderBy: { id: 'desc' },
-    })
-
-    return { educations }
-  } catch (err) {
-    handleApiError(err)
-  }
+  return laravelFetch(token, 'teacher/profile/education', { method: 'POST', body })
 })

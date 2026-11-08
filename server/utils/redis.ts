@@ -10,27 +10,22 @@ function createRedisClient(): Redis {
   const redisUrl = config.redisUrl || 'redis://127.0.0.1:6379'
 
   const client = new Redis(redisUrl, {
-    maxRetriesPerRequest: 3,
+    maxRetriesPerRequest: 0,
     retryStrategy(times: number) {
-      if (times > 10) {
-        console.error('[Redis] Max retries reached, giving up')
-        return null
-      }
-      const delay = Math.min(times * 100, 3000)
-      console.warn(`[Redis] Retrying connection in ${delay}ms (attempt ${times})`)
-      return delay
+      // Give up after 2 attempts — in-memory fallback takes over
+      if (times >= 2) return null
+      return times * 200
     },
-    reconnectOnError(err: Error) {
-      const targetErrors = ['READONLY', 'ECONNRESET', 'ECONNREFUSED']
-      return targetErrors.some((e) => err.message.includes(e))
-    },
+    reconnectOnError() { return false },
     lazyConnect: true,
-    enableOfflineQueue: true,
+    enableOfflineQueue: false,
   })
 
   client.on('connect', () => console.log('[Redis] Connected'))
-  client.on('error', (err: Error) => console.error('[Redis] Error:', err.message))
-  client.on('close', () => console.warn('[Redis] Connection closed'))
+  client.on('error', (err: Error) => {
+    // Only log once — suppress repeated ECONNREFUSED noise
+    if (!err.message.includes('ECONNREFUSED')) console.warn('[Redis]', err.message)
+  })
 
   return client
 }

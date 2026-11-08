@@ -15,6 +15,8 @@ interface User {
   phone_verified: boolean
   email_verified: boolean
   profile: Profile | null
+  first_name?: string
+  last_name?: string
 }
 
 export const useAuthStore = defineStore('auth', {
@@ -51,6 +53,8 @@ export const useAuthStore = defineStore('auth', {
           phone_verified: true,
           email_verified: true,
           profile: res.data.user.profile ?? null,
+          first_name: res.data.user.profile?.first_name ?? '',
+          last_name: res.data.user.profile?.last_name ?? '',
         }
         return res.data
       } finally {
@@ -67,6 +71,7 @@ export const useAuthStore = defineStore('auth', {
       } catch {}
       this.token = null
       this.user  = null
+      this.pendingPhone = null
     },
 
     async register(payload: {
@@ -78,30 +83,25 @@ export const useAuthStore = defineStore('auth', {
     }) {
       this.isLoading = true
       try {
-        const res = await $fetch<{ success: boolean; data: { accessToken: string; user: any } }>(
+        const res = await $fetch<{ success: boolean; message: string; phone: string }>(
           '/api/auth/register',
-          { method: 'POST', body: { first_name: payload.first_name, last_name: payload.last_name, email: payload.email, password: payload.password, role: 'student' } },
+          {
+            method: 'POST',
+            body: {
+              first_name: payload.first_name,
+              last_name: payload.last_name,
+              email: payload.email,
+              phone: payload.phone,
+              password: payload.password,
+              role: 'student',
+            },
+          },
         )
-        this.token = res.data.accessToken
-        this.user = {
-          id: res.data.user.id,
-          email: res.data.user.email,
-          phone: payload.phone ?? null,
-          role: res.data.user.role,
-          status: 'active',
-          phone_verified: true,
-          email_verified: true,
-          profile: res.data.user.profile ?? null,
-        }
-        return res.data
+        this.pendingPhone = payload.phone
+        return res
       } finally {
         this.isLoading = false
       }
-    },
-
-    async verifyOtp(_phone: string, _otp: string) {
-      // OTP flow is no longer used; user is already logged in after register
-      return { success: true }
     },
 
     async registerTeacher(payload: {
@@ -112,31 +112,68 @@ export const useAuthStore = defineStore('auth', {
     }) {
       this.isLoading = true
       try {
-        const [first_name, ...rest] = payload.full_name.trim().split(' ')
-        const last_name = rest.join(' ') || first_name
-        const res = await $fetch<{ success: boolean; data: { accessToken: string; user: any } }>(
+        const res = await $fetch<{ success: boolean; message: string; phone: string }>(
           '/api/auth/register',
-          { method: 'POST', body: { first_name, last_name, email: payload.email, password: payload.password, role: 'teacher' } },
+          {
+            method: 'POST',
+            body: {
+              full_name: payload.full_name,
+              email: payload.email,
+              phone: payload.phone,
+              password: payload.password,
+              role: 'teacher',
+            },
+          },
         )
-        this.token = res.data.accessToken
-        this.user = {
-          id: res.data.user.id,
-          email: res.data.user.email,
-          phone: payload.phone ?? null,
-          role: res.data.user.role,
-          status: 'active',
-          phone_verified: true,
-          email_verified: true,
-          profile: res.data.user.profile ?? null,
-        }
-        return res.data
+        this.pendingPhone = payload.phone
+        return res
       } finally {
         this.isLoading = false
       }
     },
 
-    async resendOtp(_phone: string) {
-      return { success: true, message: 'OTP sent' }
+    async verifyOtp(phone: string, otp: string) {
+      this.isLoading = true
+      try {
+        const res = await $fetch<{
+          success: boolean
+          token: string
+          accessToken?: string
+          user: any
+        }>('/api/auth/verify-otp', {
+          method: 'POST',
+          body: { phone, otp },
+        })
+
+        const activeToken = res.token || res.accessToken || null
+        this.token = activeToken
+        this.user = {
+          id: res.user.id,
+          email: res.user.email,
+          phone: res.user.phone ?? phone,
+          role: res.user.role ?? 'teacher',
+          status: 'active',
+          phone_verified: true,
+          email_verified: res.user.email_verified ?? false,
+          profile: res.user.profile ?? null,
+          first_name: res.user.profile?.first_name ?? res.user.first_name ?? '',
+          last_name: res.user.profile?.last_name ?? res.user.last_name ?? '',
+        }
+        this.pendingPhone = null
+        return res
+      } finally {
+        this.isLoading = false
+      }
+    },
+
+    async resendOtp(phone: string) {
+      return await $fetch<{ success: boolean; message: string }>(
+        '/api/auth/resend-otp',
+        {
+          method: 'POST',
+          body: { phone },
+        },
+      )
     },
 
     async fetchMe() {
@@ -156,6 +193,8 @@ export const useAuthStore = defineStore('auth', {
           phone_verified: true,
           email_verified: u.email_verified ?? true,
           profile: u.profile ? { first_name: u.profile.first_name, last_name: u.profile.last_name, avatar_url: u.profile.avatar_url } : null,
+          first_name: u.profile?.first_name ?? '',
+          last_name: u.profile?.last_name ?? '',
         }
       } catch {
         this.token = null

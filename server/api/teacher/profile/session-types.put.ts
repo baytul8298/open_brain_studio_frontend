@@ -1,22 +1,12 @@
-import { prisma } from '../../../utils/prisma'
-import { handleApiError } from '../../../utils/errors'
+import { requireToken, laravelFetch } from '../../../utils/laravel'
 
 export default defineEventHandler(async (event) => {
-  try {
-    const user = event.context.user
-    if (!user) throw createError({ statusCode: 401, message: 'Unauthorized' })
+  const user = event.context.user
+  if (!user) throw createError({ statusCode: 401, message: 'Unauthorized' })
 
-    const body = await readBody(event)
-    const session_types: string[] = Array.isArray(body.session_types) ? body.session_types : []
+  const token = await requireToken(user.id)
+  const body  = await readBody(event)
 
-    await prisma.teacherProfile.upsert({
-      where: { id: user.id },
-      create: { id: user.id, session_types },
-      update: { session_types },
-    })
-
-    return { session_types }
-  } catch (err) {
-    handleApiError(err)
-  }
+  // Forward { session_types } — Laravel's updateSubjects handles partial updates
+  return laravelFetch(token, 'teacher/profile/subjects', { method: 'PUT', body })
 })

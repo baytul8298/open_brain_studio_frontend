@@ -1027,8 +1027,8 @@ async function saveAbout() {
       headers: authHeaders.value,
       body: { bio: aboutForm.bio, headline: aboutForm.headline },
     })
-    if (data.profile)  Object.assign(profile, data.profile)
-    if (data.teacher)  Object.assign(teacher, data.teacher)
+    profile.bio      = aboutForm.bio
+    teacher.headline = aboutForm.headline
     aboutEditMode.value = false
     showToast(data.message || 'About section saved!')
   } catch (e: any) {
@@ -1117,7 +1117,7 @@ function toggleExpEdit() {
   if (!expEditMode.value && experience.value) {
     const e = experience.value
     expForm.role          = e.role || 'teacher'
-    expForm.started_month = e.started_month || ''
+    expForm.started_month = e.started_month ? String(Number(e.started_month)).padStart(2, '0') : ''
     expForm.started_year  = e.started_year  || ''
     expForm.description   = e.description   || ''
     expForm.expertiseRaw  = Array.isArray(e.expertise) ? e.expertise.join(', ') : ''
@@ -1190,18 +1190,19 @@ async function saveSessionTypes() {
 const showSubjectPickerModal = ref(false)
 const selectedSubjectIds     = ref(new Set<number>())
 
-function isSubjectSelected(id: number) { return selectedSubjectIds.value.has(id) }
+function isSubjectSelected(id: number) { return selectedSubjectIds.value.has(Number(id)) }
 
 function toggleSubjectPicker(subj: any) {
   const s = new Set(selectedSubjectIds.value)
-  s.has(subj.id) ? s.delete(subj.id) : s.add(subj.id)
+  const id = Number(subj.id)
+  s.has(id) ? s.delete(id) : s.add(id)
   selectedSubjectIds.value = s
 }
 
 function removeSubject(id: number) {
   subjects.value = subjects.value.filter(s => s.id !== id)
   const s = new Set(selectedSubjectIds.value)
-  s.delete(id)
+  s.delete(Number(id))
   selectedSubjectIds.value = s
   saveSubjectsQuiet([...selectedSubjectIds.value])
 }
@@ -1290,7 +1291,7 @@ async function saveGradesQuiet(ids: number[]) {
 
 // Sync pickers when modals open
 watch(showSubjectPickerModal, (v) => {
-  if (v) selectedSubjectIds.value = new Set(subjects.value.map((s: any) => s.id))
+  if (v) selectedSubjectIds.value = new Set(subjects.value.map((s: any) => Number(s.id)))
 })
 watch(showGradePickerModal, (v) => {
   if (v) selectedGradeIds.value = new Set(gradeLevels.value.map((g: any) => g.id))
@@ -1331,6 +1332,7 @@ async function submitStyleForm() {
   styleFormError.value = ''
   saving.style = true
   try {
+    let successMsg = ''
     if (editingStyleId.value) {
       const data: any = await $fetch(`${apiBase}/api/teacher/profile/teaching-styles/${editingStyleId.value}`, {
         method: 'PUT', headers: authHeaders.value,
@@ -1341,6 +1343,7 @@ async function submitStyleForm() {
         const idx = teachingStyles.value.findIndex(s => s.id === editingStyleId.value)
         if (idx !== -1) teachingStyles.value[idx] = updated
       }
+      successMsg = data.message || 'Teaching style updated!'
     } else {
       const data: any = await $fetch(`${apiBase}/api/teacher/profile/teaching-styles`, {
         method: 'POST', headers: authHeaders.value,
@@ -1351,10 +1354,8 @@ async function submitStyleForm() {
         const newStyle = data.style ?? data.teaching_style
         if (newStyle) teachingStyles.value.push(newStyle)
       }
+      successMsg = data.message || 'Teaching style added!'
     }
-    const successMsg = editingStyleId.value
-      ? (data.message || 'Teaching style updated!')
-      : (data.message || 'Teaching style added!')
     closeStyleModal()
     showToast(successMsg)
   } catch (e: any) {

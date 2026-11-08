@@ -72,6 +72,19 @@ export default defineEventHandler(async (event) => {
       data: { last_login_at: new Date(), last_login_ip: ip },
     })
 
+    // Also obtain a Laravel Sanctum token for server-side proxying
+    try {
+      const laravelPath = user.role === 'teacher' ? 'auth/teacher/login' : 'auth/student/login'
+      const { laravelApiUrl } = useRuntimeConfig()
+      const lr: any = await $fetch(`${laravelApiUrl}/api/${laravelPath}`, {
+        method: 'POST',
+        body: { email, password },
+      })
+      if (lr?.token) await storeLaravelToken(user.id, lr.token)
+    } catch (e) {
+      console.warn('[Auth] Could not obtain Laravel token:', (e as any)?.message)
+    }
+
     setCookie(event, 'obs_refresh', tokens.refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

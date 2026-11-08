@@ -1,31 +1,11 @@
-import { prisma } from '../../../utils/prisma'
-import { handleApiError } from '../../../utils/errors'
+import { requireToken, laravelFetch } from '../../../utils/laravel'
 
 export default defineEventHandler(async (event) => {
-  try {
-    const user = event.context.user
-    if (!user) throw createError({ statusCode: 401, message: 'Unauthorized' })
+  const user = event.context.user
+  if (!user) throw createError({ statusCode: 401, message: 'Unauthorized' })
 
-    const body = await readBody(event)
-    const subject_ids: number[] = Array.isArray(body.subject_ids) ? body.subject_ids.map(Number) : []
+  const token = await requireToken(user.id)
+  const body  = await readBody(event)
 
-    await prisma.$transaction([
-      prisma.teacherSubject.deleteMany({ where: { teacher_id: user.id } }),
-      ...(subject_ids.length > 0
-        ? [prisma.teacherSubject.createMany({
-            data: subject_ids.map(id => ({ teacher_id: user.id, subject_id: id })),
-            skipDuplicates: true,
-          })]
-        : []),
-    ])
-
-    const teacherSubjects = await prisma.teacherSubject.findMany({
-      where: { teacher_id: user.id },
-      include: { subject: true },
-    })
-
-    return { subjects: teacherSubjects.map(ts => ts.subject) }
-  } catch (err) {
-    handleApiError(err)
-  }
+  return laravelFetch(token, 'teacher/profile/subjects', { method: 'PUT', body })
 })

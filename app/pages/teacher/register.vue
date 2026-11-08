@@ -147,7 +147,7 @@
           <UiAuthError :message="errorMessage" />
 
           <!-- OTP Modal -->
-          <UiOtpModal v-model="showOtpModal" :phone="registeredPhone" role="teacher" />
+          <UiOtpModal v-model="showOtpModal" :phone="registeredPhone" role="teacher" @verified="handleOtpVerified" />
 
           <!-- Submit -->
           <button type="submit" :disabled="loading || !agreed" class="btn-primary" style="animation: fadeUp .7s .5s ease both">
@@ -229,19 +229,24 @@ function pwStrengthClass(barIndex: number) {
 }
 
 async function handleRegister() {
-  const phone = countryCode.value + phoneNumber.value.replace(/\D/g, '')
+  let rawDigits = phoneNumber.value.replace(/\D/g, '')
+  if (countryCode.value === '+880' && rawDigits.startsWith('0')) {
+    rawDigits = rawDigits.substring(1)
+  }
+  const phone = countryCode.value + rawDigits
 
   loading.value = true
   errorMessage.value = ''
 
   try {
-    await authStore.registerTeacher({
+    const res = await authStore.registerTeacher({
       full_name: form.full_name,
       email: form.email,
       phone,
       password: form.password,
     })
-    await navigateTo('/teacher/dashboard')
+    registeredPhone.value = res?.phone || phone
+    showOtpModal.value = true
   } catch (err: unknown) {
     const e = err as { data?: { message?: string; errors?: Record<string, string[]> }; message?: string }
     const firstError = e?.data?.errors ? Object.values(e.data.errors)[0]?.[0] : null
@@ -249,6 +254,10 @@ async function handleRegister() {
   } finally {
     loading.value = false
   }
+}
+
+async function handleOtpVerified() {
+  await navigateTo('/teacher/dashboard')
 }
 </script>
 

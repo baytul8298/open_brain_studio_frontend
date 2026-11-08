@@ -8,7 +8,7 @@ datasource db {
   url        = env("DATABASE_URL")
   directUrl  = env("DIRECT_URL")
   extensions = [uuidOssp(map: "uuid-ossp"), pgTrgm(map: "pg_trgm")]
-  schemas    = ["auth", "core", "learn", "commerce", "comms"]
+  schemas    = ["auth", "core", "learn", "commerce", "comms", "public"]
 }
 
 // ─────────────────────────────────────────────
