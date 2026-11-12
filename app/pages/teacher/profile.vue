@@ -923,8 +923,11 @@ useHead({
 const authStore = useAuthStore()
 const config    = useRuntimeConfig()
 
-const apiBase = ''
-const authHeaders = computed(() => ({ Authorization: `Bearer ${authStore.token}` }))
+const apiBase = config.public.laravelApiUrl
+const authHeaders = computed(() => ({
+  Accept: 'application/json',
+  Authorization: `Bearer ${authStore.token}`,
+}))
 
 // ── Profile data (from API) ───────────────────────────────
 const loading = ref(true)
@@ -956,15 +959,27 @@ const expParagraphs = computed(() =>
   (experience.value?.description || '').split(/\n\n+/).map((p: string) => p.trim()).filter(Boolean)
 )
 
+function normalizeExperience(raw: any) {
+  const item = Array.isArray(raw) ? (raw[0] ?? null) : (raw && Object.keys(raw).length ? raw : null)
+  if (!item) return null
+  return {
+    ...item,
+    role: item.role ?? item.role_type ?? 'teacher',
+    started_month: item.started_month ?? item.start_month ?? '',
+    started_year: item.started_year ?? item.start_year ?? '',
+    expertise: item.expertise ?? item.expertise_tags ?? [],
+  }
+}
+
 // ── Fetch profile ─────────────────────────────────────────
 async function fetchProfile() {
   loading.value = true
   try {
-    const data: any = await $fetch(`${apiBase}/api/teacher/profile/about`, { headers: authHeaders.value })
+    const data: any = await $fetch(`${apiBase}/api/teacher/profile`, { headers: authHeaders.value })
     Object.assign(profile, data.profile || {})
     Object.assign(teacher, data.teacher || {})
     educations.value     = data.educations    || []
-    experience.value     = data.experience?.[0] ?? null
+    experience.value     = normalizeExperience(data.experience)
     subjects.value       = data.subjects      || []
     gradeLevels.value    = data.grade_levels  || []
     teachingStyles.value = data.teaching_styles || []
@@ -1027,8 +1042,10 @@ async function saveAbout() {
       headers: authHeaders.value,
       body: { bio: aboutForm.bio, headline: aboutForm.headline },
     })
-    if (data.profile)  Object.assign(profile, data.profile)
-    if (data.teacher)  Object.assign(teacher, data.teacher)
+    profile.bio = aboutForm.bio
+    teacher.headline = aboutForm.headline
+    if (data.profile) Object.assign(profile, data.profile)
+    if (data.teacher) Object.assign(teacher, data.teacher)
     aboutEditMode.value = false
     showToast(data.message || 'About section saved!')
   } catch (e: any) {
@@ -1071,9 +1088,9 @@ async function saveEducation() {
     const body = { type: eduForm.type, title: eduForm.title, institution: eduForm.institution, start_year: Number(eduForm.start_year) || null, end_year: Number(eduForm.end_year) || null, cgpa: eduForm.cgpa || null }
     let data: any
     if (editingEduId.value) {
-      data = await $fetch(`${apiBase}/api/teacher/profile/educations/${editingEduId.value}`, { method: 'PUT', headers: authHeaders.value, body })
+      data = await $fetch(`${apiBase}/api/teacher/profile/education/${editingEduId.value}`, { method: 'PUT', headers: authHeaders.value, body })
     } else {
-      data = await $fetch(`${apiBase}/api/teacher/profile/educations`, { method: 'POST', headers: authHeaders.value, body })
+      data = await $fetch(`${apiBase}/api/teacher/profile/education`, { method: 'POST', headers: authHeaders.value, body })
     }
     if (data.educations) educations.value = data.educations
     else await fetchProfile()
@@ -1094,7 +1111,7 @@ async function executeDelete() {
   if (!deleteTargetId.value) return
   saving.deleting = true
   try {
-    await $fetch(`${apiBase}/api/teacher/profile/educations/${deleteTargetId.value}`, { method: 'DELETE', headers: authHeaders.value })
+    await $fetch(`${apiBase}/api/teacher/profile/education/${deleteTargetId.value}`, { method: 'DELETE', headers: authHeaders.value })
     educations.value = educations.value.filter(e => e.id !== deleteTargetId.value)
     showDeleteConfirm.value = false
   } catch (e) { console.error(e) }
@@ -1128,15 +1145,16 @@ function toggleExpEdit() {
 async function saveExperience() {
   saving.experience = true
   try {
+    const tags = expForm.expertiseRaw.split(',').map((t: string) => t.trim()).filter(Boolean)
     const body = {
-      role: expForm.role,
-      started_month: expForm.started_month,
-      started_year: expForm.started_year,
+      role_type: expForm.role || 'teacher',
+      start_month: Number(expForm.started_month) || null,
+      start_year: Number(expForm.started_year) || null,
       description: expForm.description,
-      expertise: expForm.expertiseRaw.split(',').map((t: string) => t.trim()).filter(Boolean),
+      expertise_tags: tags,
     }
     const data: any = await $fetch(`${apiBase}/api/teacher/profile/experience`, { method: 'PUT', headers: authHeaders.value, body })
-    if (data.experience) experience.value = data.experience[0] ?? null
+    if (data.experience) experience.value = normalizeExperience(data.experience)
     else await fetchProfile()
     expEditMode.value = false
     showToast(data.message || 'Experience saved!')
@@ -1174,10 +1192,14 @@ function toggleSession(type: string) {
 async function saveSessionTypes() {
   saving.sessionTypes = true
   try {
-    await $fetch(`${apiBase}/api/teacher/profile/session-types`, {
+    await $fetch(`${apiBase}/api/teacher/profile/subjects`, {
       method: 'PUT',
       headers: authHeaders.value,
-      body: { session_types: [...sessionTypes.value] },
+      body: {
+        subject_ids: subjects.value.map((s: any) => s.id),
+        grade_level_ids: gradeLevels.value.map((g: any) => g.id),
+        session_types: [...sessionTypes.value],
+      },
     })
     teacher.session_types = [...sessionTypes.value]
   } catch (e) { console.error(e) }
@@ -1213,7 +1235,11 @@ async function saveSubjects() {
     const data: any = await $fetch(`${apiBase}/api/teacher/profile/subjects`, {
       method: 'PUT',
       headers: authHeaders.value,
-      body: { subject_ids: ids },
+      body: {
+        subject_ids: ids,
+        grade_level_ids: gradeLevels.value.map((g: any) => g.id),
+        session_types: [...sessionTypes.value],
+      },
     })
     if (data.subjects) subjects.value = data.subjects
     else subjects.value = allSubjects.value.filter(s => ids.includes(s.id))
@@ -1228,7 +1254,13 @@ async function saveSubjects() {
 async function saveSubjectsQuiet(ids: number[]) {
   try {
     const data: any = await $fetch(`${apiBase}/api/teacher/profile/subjects`, {
-      method: 'PUT', headers: authHeaders.value, body: { subject_ids: ids },
+      method: 'PUT',
+      headers: authHeaders.value,
+      body: {
+        subject_ids: ids,
+        grade_level_ids: gradeLevels.value.map((g: any) => g.id),
+        session_types: [...sessionTypes.value],
+      },
     })
     if (data.subjects) subjects.value = data.subjects
   } catch (e) { console.error(e) }
@@ -1266,8 +1298,14 @@ async function saveGrades() {
   saving.grades = true
   try {
     const ids = [...selectedGradeIds.value]
-    const data: any = await $fetch(`${apiBase}/api/teacher/profile/grade-levels`, {
-      method: 'PUT', headers: authHeaders.value, body: { grade_level_ids: ids },
+    const data: any = await $fetch(`${apiBase}/api/teacher/profile/subjects`, {
+      method: 'PUT',
+      headers: authHeaders.value,
+      body: {
+        subject_ids: subjects.value.map((s: any) => s.id),
+        grade_level_ids: ids,
+        session_types: [...sessionTypes.value],
+      },
     })
     if (data.grade_levels) gradeLevels.value = data.grade_levels
     else gradeLevels.value = allGradeLevels.value.filter(g => ids.includes(g.id))
@@ -1281,8 +1319,14 @@ async function saveGrades() {
 
 async function saveGradesQuiet(ids: number[]) {
   try {
-    const data: any = await $fetch(`${apiBase}/api/teacher/profile/grade-levels`, {
-      method: 'PUT', headers: authHeaders.value, body: { grade_level_ids: ids },
+    const data: any = await $fetch(`${apiBase}/api/teacher/profile/subjects`, {
+      method: 'PUT',
+      headers: authHeaders.value,
+      body: {
+        subject_ids: subjects.value.map((s: any) => s.id),
+        grade_level_ids: ids,
+        session_types: [...sessionTypes.value],
+      },
     })
     if (data.grade_levels) gradeLevels.value = data.grade_levels
   } catch (e) { console.error(e) }
@@ -1444,12 +1488,40 @@ function confirmAddSlot() {
   showTimeModal.value = false
 }
 
+const DAY_TO_DOW: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+
+function to24HourTime(slotStr: string): string {
+  const match = String(slotStr).trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i)
+  if (!match) return '08:00'
+  let h = parseInt(match[1], 10)
+  const m = match[2]
+  const period = match[3]?.toUpperCase()
+  if (period === 'PM' && h < 12) h += 12
+  if (period === 'AM' && h === 12) h = 0
+  return `${String(h).padStart(2, '0')}:${m}`
+}
+
+function buildLaravelAvailabilitySlots() {
+  const slots: { day: number; time: string }[] = []
+  availabilityGrid.value.forEach(d => {
+    const dow = DAY_TO_DOW[d.day]
+    if (dow === undefined) return
+    d.slots.forEach(s => {
+      slots.push({ day: dow, time: to24HourTime(s) })
+    })
+  })
+  return slots
+}
+
 async function toggleFlexibleTime() {
   flexibleTime.value = !flexibleTime.value
   try {
-    await $fetch(`${apiBase}/api/teacher/profile/about`, {
+    await $fetch(`${apiBase}/api/teacher/profile/availability`, {
       method: 'PUT', headers: authHeaders.value,
-      body: { is_flexible_time: flexibleTime.value },
+      body: {
+        is_flexible_time: flexibleTime.value,
+        slots: buildLaravelAvailabilitySlots(),
+      },
     })
     teacher.is_flexible_time = flexibleTime.value
   } catch (e) {
@@ -1461,12 +1533,12 @@ async function toggleFlexibleTime() {
 async function saveAvailability() {
   saving.availability = true
   try {
-    const payload = availabilityGrid.value
-      .filter(d => d.slots.length > 0)
-      .map(d => ({ day: d.day, slots: d.slots }))
     const data: any = await $fetch(`${apiBase}/api/teacher/profile/availability`, {
       method: 'PUT', headers: authHeaders.value,
-      body: { availability: payload },
+      body: {
+        is_flexible_time: flexibleTime.value,
+        slots: buildLaravelAvailabilitySlots(),
+      },
     })
     if (data.availability) {
       rawAvailability.value = data.availability

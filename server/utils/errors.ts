@@ -48,6 +48,9 @@ export function handleApiError(err: unknown): never {
   if (err instanceof ApiError) {
     throw createError({ statusCode: err.statusCode, message: err.message })
   }
+  if (err && typeof err === 'object' && 'statusCode' in err) {
+    throw err
+  }
   if (err instanceof Error) {
     console.error('[API Error]', err)
     throw createError({ statusCode: 500, message: 'Internal server error' })

@@ -241,7 +241,8 @@ async function handleRegister() {
       phone,
       password: form.password,
     })
-    await navigateTo('/teacher/dashboard')
+    registeredPhone.value = phone
+    showOtpModal.value = true
   } catch (err: unknown) {
     const e = err as { data?: { message?: string; errors?: Record<string, string[]> }; message?: string }
     const firstError = e?.data?.errors ? Object.values(e.data.errors)[0]?.[0] : null

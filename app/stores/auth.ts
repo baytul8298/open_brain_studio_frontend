@@ -34,35 +34,44 @@ export const useAuthStore = defineStore('auth', {
   },
 
   actions: {
-    async login(email: string, password: string, _role: 'student' | 'teacher' = 'student') {
+    async login(email: string, password: string, role: 'student' | 'teacher' = 'student') {
       this.isLoading = true
+      const config = useRuntimeConfig()
+      const base = config.public.laravelApiUrl
       try {
-        const res = await $fetch<{ success: boolean; data: { accessToken: string; user: any } }>(
-          '/api/auth/login',
-          { method: 'POST', body: { email, password } },
+        const res = await $fetch<{ token?: string; data?: { accessToken?: string; user?: any }; user?: any }>(
+          `${base}/api/auth/${role}/login`,
+          { method: 'POST', headers: { Accept: 'application/json' }, body: { email, password } },
         )
-        this.token = res.data.accessToken
+        const token = res.token ?? res.data?.accessToken ?? null
+        const u = res.user ?? res.data?.user
+        this.token = token
         this.user = {
-          id: res.data.user.id,
-          email: res.data.user.email,
-          phone: null,
-          role: res.data.user.role,
-          status: 'active',
-          phone_verified: true,
-          email_verified: true,
-          profile: res.data.user.profile ?? null,
+          id: u.id,
+          email: u.email,
+          phone: u.phone ?? null,
+          role: u.role,
+          status: u.status ?? 'active',
+          phone_verified: u.phone_verified ?? true,
+          email_verified: u.email_verified ?? true,
+          profile: u.profile ?? null,
         }
-        return res.data
+        if (!this.user.profile) {
+          await this.fetchMe()
+        }
+        return { accessToken: token, token, user: this.user }
       } finally {
         this.isLoading = false
       }
     },
 
     async logout() {
+      const config = useRuntimeConfig()
+      const base = config.public.laravelApiUrl
       try {
-        await $fetch('/api/auth/logout', {
+        await $fetch(`${base}/api/auth/logout`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${this.token}` },
+          headers: { Accept: 'application/json', Authorization: `Bearer ${this.token}` },
         })
       } catch {}
       this.token = null
@@ -77,31 +86,62 @@ export const useAuthStore = defineStore('auth', {
       password: string
     }) {
       this.isLoading = true
+      const config = useRuntimeConfig()
+      const base = config.public.laravelApiUrl
       try {
-        const res = await $fetch<{ success: boolean; data: { accessToken: string; user: any } }>(
-          '/api/auth/register',
-          { method: 'POST', body: { first_name: payload.first_name, last_name: payload.last_name, email: payload.email, password: payload.password, role: 'student' } },
+        const res = await $fetch<{ success: boolean; message?: string; phone?: string }>(
+          `${base}/api/auth/student/register`,
+          {
+            method: 'POST',
+            headers: { Accept: 'application/json' },
+            body: {
+              first_name: payload.first_name,
+              last_name: payload.last_name,
+              email: payload.email,
+              phone: payload.phone,
+              password: payload.password,
+            },
+          },
         )
-        this.token = res.data.accessToken
-        this.user = {
-          id: res.data.user.id,
-          email: res.data.user.email,
-          phone: payload.phone ?? null,
-          role: res.data.user.role,
-          status: 'active',
-          phone_verified: true,
-          email_verified: true,
-          profile: res.data.user.profile ?? null,
-        }
-        return res.data
+        this.pendingPhone = payload.phone
+        return res
       } finally {
         this.isLoading = false
       }
     },
 
-    async verifyOtp(_phone: string, _otp: string) {
-      // OTP flow is no longer used; user is already logged in after register
-      return { success: true }
+    async verifyOtp(phone: string, otp: string) {
+      this.isLoading = true
+      const config = useRuntimeConfig()
+      const base = config.public.laravelApiUrl
+      try {
+        const res = await $fetch<{ success: boolean; token: string; user: any }>(
+          `${base}/api/auth/verify-otp`,
+          {
+            method: 'POST',
+            headers: { Accept: 'application/json' },
+            body: { phone, otp },
+          },
+        )
+        this.token = res.token
+        this.pendingPhone = null
+        this.user = {
+          id: res.user.id,
+          email: res.user.email,
+          phone: res.user.phone ?? phone,
+          role: res.user.role,
+          status: res.user.status ?? 'active',
+          phone_verified: res.user.phone_verified ?? true,
+          email_verified: res.user.email_verified ?? false,
+          profile: res.user.profile ?? null,
+        }
+        if (!this.user.profile) {
+          await this.fetchMe()
+        }
+        return res
+      } finally {
+        this.isLoading = false
+      }
     },
 
     async registerTeacher(payload: {
@@ -111,49 +151,59 @@ export const useAuthStore = defineStore('auth', {
       password: string
     }) {
       this.isLoading = true
+      const config = useRuntimeConfig()
+      const base = config.public.laravelApiUrl
       try {
-        const [first_name, ...rest] = payload.full_name.trim().split(' ')
-        const last_name = rest.join(' ') || first_name
-        const res = await $fetch<{ success: boolean; data: { accessToken: string; user: any } }>(
-          '/api/auth/register',
-          { method: 'POST', body: { first_name, last_name, email: payload.email, password: payload.password, role: 'teacher' } },
+        const res = await $fetch<{ success: boolean; message?: string; phone?: string }>(
+          `${base}/api/auth/teacher/register`,
+          {
+            method: 'POST',
+            headers: { Accept: 'application/json' },
+            body: {
+              full_name: payload.full_name,
+              email: payload.email,
+              phone: payload.phone,
+              password: payload.password,
+            },
+          },
         )
-        this.token = res.data.accessToken
-        this.user = {
-          id: res.data.user.id,
-          email: res.data.user.email,
-          phone: payload.phone ?? null,
-          role: res.data.user.role,
-          status: 'active',
-          phone_verified: true,
-          email_verified: true,
-          profile: res.data.user.profile ?? null,
-        }
-        return res.data
+        this.pendingPhone = payload.phone
+        return res
       } finally {
         this.isLoading = false
       }
     },
 
-    async resendOtp(_phone: string) {
-      return { success: true, message: 'OTP sent' }
+    async resendOtp(phone: string) {
+      const config = useRuntimeConfig()
+      const base = config.public.laravelApiUrl
+      return $fetch<{ success: boolean; message: string }>(
+        `${base}/api/auth/resend-otp`,
+        {
+          method: 'POST',
+          headers: { Accept: 'application/json' },
+          body: { phone },
+        },
+      )
     },
 
     async fetchMe() {
       if (!this.token) return
+      const config = useRuntimeConfig()
+      const base = config.public.laravelApiUrl
       try {
-        const res = await $fetch<{ success: boolean; data: any }>(
-          '/api/auth/me',
-          { headers: { Authorization: `Bearer ${this.token}` } },
+        const res = await $fetch<any>(
+          `${base}/api/auth/me`,
+          { headers: { Accept: 'application/json', Authorization: `Bearer ${this.token}` } },
         )
-        const u = res.data
+        const u = res.data ?? res
         this.user = {
           id: u.id,
           email: u.email,
-          phone: null,
+          phone: u.phone ?? null,
           role: u.role,
           status: u.status ?? 'active',
-          phone_verified: true,
+          phone_verified: u.phone_verified ?? true,
           email_verified: u.email_verified ?? true,
           profile: u.profile ? { first_name: u.profile.first_name, last_name: u.profile.last_name, avatar_url: u.profile.avatar_url } : null,
         }
