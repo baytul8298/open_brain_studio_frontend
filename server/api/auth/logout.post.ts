@@ -1,31 +1,20 @@
-import { prisma } from '../../utils/prisma'
+import { getLaravelToken, deleteLaravelToken, laravelFetch } from '../../utils/laravel'
 import { noContent } from '../../utils/response'
 import { handleApiError } from '../../utils/errors'
 
 export default defineEventHandler(async (event) => {
   try {
     const user = event.context.user
-    if (!user) {
-      throw createError({ statusCode: 401, message: 'Unauthorized' })
-    }
-
-    const refreshToken = getCookie(event, 'obs_refresh')
-
-    if (refreshToken) {
-      await prisma.session.updateMany({
-        where: {
-          user_id: user.id,
-          refresh_token: refreshToken,
-          is_revoked: false,
-        },
-        data: { is_revoked: true },
-      })
-    } else {
-      // Revoke all sessions for user if no specific token
-      await prisma.session.updateMany({
-        where: { user_id: user.id, is_revoked: false },
-        data: { is_revoked: true },
-      })
+    if (user?.id) {
+      const token = user.id.includes('|') ? user.id : await getLaravelToken(user.id)
+      if (token) {
+        try {
+          await laravelFetch(token, 'auth/logout', { method: 'POST' })
+        } catch {
+          // Ignore if token is already revoked on Laravel side
+        }
+      }
+      await deleteLaravelToken(user.id)
     }
 
     deleteCookie(event, 'obs_refresh', { path: '/' })

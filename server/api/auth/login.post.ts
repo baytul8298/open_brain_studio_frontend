@@ -1,12 +1,12 @@
 import { z } from 'zod'
-import { prisma } from '../../utils/prisma'
-import { comparePassword } from '../../utils/password'
+import { storeLaravelToken } from '../../utils/laravel'
 import { generateTokenPair } from '../../utils/jwt'
 import { ok } from '../../utils/response'
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(1, 'Password is required'),
+  role: z.enum(['student', 'teacher']).optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -22,83 +22,51 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    const { email, password } = parsed.data
+    const { email, password, role } = parsed.data
+    const laravelPath = role === 'student' ? 'auth/student/login' : 'auth/teacher/login'
+    const { laravelApiUrl } = useRuntimeConfig()
 
-    const user = await prisma.user.findUnique({
-      where: { email },
-      include: { profile: true },
+    const lr: any = await $fetch(`${laravelApiUrl}/api/${laravelPath}`, {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+      body: { email, password },
     })
 
-    if (!user) {
+    const user = lr?.user
+    if (!user || !lr?.token) {
       throw createError({ statusCode: 401, message: 'Invalid email or password' })
     }
 
-    const valid = await comparePassword(password, user.password_hash)
-    if (!valid) {
-      throw createError({ statusCode: 401, message: 'Invalid email or password' })
-    }
+    await storeLaravelToken(user.id, lr.token)
 
-    if (user.status === 'suspended') {
-      throw createError({ statusCode: 403, message: 'Your account has been suspended' })
-    }
-
-    const tokenPayload = { sub: user.id, email: user.email, role: user.role }
-    const tokens = generateTokenPair(tokenPayload)
-
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-    const ip = getRequestHeader(event, 'x-forwarded-for') ?? getRequestIP(event) ?? null
-    const ua = getRequestHeader(event, 'user-agent') ?? null
-
-    await prisma.session.upsert({
-      where: { refresh_token: tokens.refreshToken },
-      update: {
-        refresh_token: tokens.refreshToken,
-        is_revoked: false,
-        expires_at: expiresAt,
-        ip_address: ip,
-        device_info: ua ? { user_agent: ua } : undefined,
-      },
-      create: {
-        user_id: user.id,
-        refresh_token: tokens.refreshToken,
-        expires_at: expiresAt,
-        ip_address: ip,
-        device_info: ua ? { user_agent: ua } : undefined,
-      },
-    })
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { last_login_at: new Date(), last_login_ip: ip },
-    })
-
-    // Also obtain a Laravel Sanctum token for server-side proxying
+    let accessToken = lr.token
     try {
-      const laravelPath = user.role === 'teacher' ? 'auth/teacher/login' : 'auth/student/login'
-      const { laravelApiUrl } = useRuntimeConfig()
-      const lr: any = await $fetch(`${laravelApiUrl}/api/${laravelPath}`, {
-        method: 'POST',
-        body: { email, password },
-      })
-      if (lr?.token) await storeLaravelToken(user.id, lr.token)
-    } catch (e) {
-      console.warn('[Auth] Could not obtain Laravel token:', (e as any)?.message)
-    }
+      const tokenPayload = { sub: user.id, email: user.email, role: user.role }
+      const tokens = generateTokenPair(tokenPayload)
+      accessToken = tokens.accessToken
 
-    setCookie(event, 'obs_refresh', tokens.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60,
-      path: '/',
-    })
+      setCookie(event, 'obs_refresh', tokens.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60,
+        path: '/',
+      })
+    } catch (e) {
+      console.warn('[JWT] Could not generate local token pair, using Laravel token', e)
+    }
 
     return ok({
-      accessToken: tokens.accessToken,
+      token: lr.token,
+      accessToken,
       user: {
         id: user.id,
         email: user.email,
+        phone: user.phone ?? null,
         role: user.role,
+        status: user.status ?? 'active',
+        phone_verified: user.phone_verified ?? true,
+        email_verified: user.email_verified ?? false,
         profile: {
           first_name: user.profile?.first_name ?? '',
           last_name: user.profile?.last_name ?? '',
@@ -106,7 +74,13 @@ export default defineEventHandler(async (event) => {
         },
       },
     })
-  } catch (err) {
-    throw err
+  } catch (err: any) {
+    const status = err.response?.status ?? err.statusCode ?? 500
+    const message = err.data?.message ?? err.message ?? 'Login failed'
+    throw createError({
+      statusCode: status,
+      message,
+      data: err.data,
+    })
   }
 })

@@ -1,4 +1,4 @@
-import { prisma } from '../../utils/prisma'
+import { requireToken, laravelFetch } from '../../utils/laravel'
 import { ok } from '../../utils/response'
 import { handleApiError } from '../../utils/errors'
 
@@ -9,14 +9,8 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 401, message: 'Unauthorized' })
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: ctxUser.id },
-      include: {
-        profile: true,
-        student_profile: ctxUser.role === 'student',
-        teacher_profile: ctxUser.role === 'teacher',
-      },
-    })
+    const token = await requireToken(ctxUser.id)
+    const user: any = await laravelFetch(token, 'auth/me')
 
     if (!user) {
       throw createError({ statusCode: 404, message: 'User not found' })
@@ -25,13 +19,12 @@ export default defineEventHandler(async (event) => {
     return ok({
       id: user.id,
       email: user.email,
+      phone: user.phone ?? null,
       role: user.role,
-      status: user.status,
-      email_verified: user.email_verified,
-      created_at: user.created_at,
-      profile: user.profile,
-      student_profile: user.student_profile,
-      teacher_profile: user.teacher_profile,
+      status: user.status ?? 'active',
+      phone_verified: user.phone_verified ?? true,
+      email_verified: user.email_verified ?? false,
+      profile: user.profile ?? null,
     })
   } catch (err) {
     handleApiError(err)

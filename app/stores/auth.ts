@@ -36,22 +36,22 @@ export const useAuthStore = defineStore('auth', {
   },
 
   actions: {
-    async login(email: string, password: string, _role: 'student' | 'teacher' = 'student') {
+    async login(email: string, password: string, role: 'student' | 'teacher' = 'student') {
       this.isLoading = true
       try {
-        const res = await $fetch<{ success: boolean; data: { accessToken: string; user: any } }>(
+        const res = await $fetch<{ success: boolean; data: { token?: string; accessToken: string; user: any } }>(
           '/api/auth/login',
-          { method: 'POST', body: { email, password } },
+          { method: 'POST', body: { email, password, role } },
         )
-        this.token = res.data.accessToken
+        this.token = res.data.token || res.data.accessToken
         this.user = {
           id: res.data.user.id,
           email: res.data.user.email,
-          phone: null,
+          phone: res.data.user.phone ?? null,
           role: res.data.user.role,
-          status: 'active',
-          phone_verified: true,
-          email_verified: true,
+          status: res.data.user.status ?? 'active',
+          phone_verified: res.data.user.phone_verified ?? true,
+          email_verified: res.data.user.email_verified ?? true,
           profile: res.data.user.profile ?? null,
           first_name: res.data.user.profile?.first_name ?? '',
           last_name: res.data.user.profile?.last_name ?? '',

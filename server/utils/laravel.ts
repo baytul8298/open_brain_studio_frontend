@@ -27,6 +27,7 @@ export async function deleteLaravelToken(userId: string) {
 }
 
 export async function requireToken(userId: string): Promise<string> {
+  if (userId && userId.includes('|')) return userId
   const token = await getLaravelToken(userId)
   if (!token) throw createError({ statusCode: 401, message: 'Session expired. Please log in again.' })
   return token

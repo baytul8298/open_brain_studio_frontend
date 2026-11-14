@@ -15,6 +15,13 @@ export default defineEventHandler((event) => {
       role: payload.role,
     }
   } catch {
-    // Invalid token - leave context.user undefined
+    // Support Laravel Sanctum tokens ("<id>|<token>") passed directly by the client
+    if (token.includes('|')) {
+      event.context.user = {
+        id: token,
+        email: '',
+        role: 'teacher',
+      }
+    }
   }
 })
