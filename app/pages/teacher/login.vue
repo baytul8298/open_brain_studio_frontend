@@ -113,6 +113,9 @@
           <!-- Error -->
           <UiAuthError :message="errorMessage" />
 
+          <!-- OTP Modal (if phone is not verified yet) -->
+          <UiOtpModal v-model="showOtpModal" :phone="pendingPhone" role="teacher" @verified="handleOtpVerified" />
+
           <!-- Submit -->
           <button type="submit" :disabled="loading" class="btn-primary" style="animation: fadeUp .7s .48s ease both">
             {{ loading ? 'Signing in…' : 'Sign in →' }}
@@ -157,6 +160,8 @@ const showPw = ref(false)
 const rememberMe = ref(false)
 const loading = ref(false)
 const errorMessage = ref('')
+const showOtpModal = ref(false)
+const pendingPhone = ref('')
 
 const stats = [
   { num: '12K+', label: 'Instructors' },
@@ -177,11 +182,22 @@ async function handleLogin() {
     }
     await navigateTo('/teacher/dashboard')
   } catch (err: unknown) {
-    const e = err as { data?: { message?: string }; message?: string }
+    const e = err as { data?: { message?: string; data?: { requires_otp?: boolean; phone?: string }; requires_otp?: boolean; phone?: string }; message?: string }
+    const requiresOtp = e?.data?.data?.requires_otp ?? e?.data?.requires_otp
+    const phone = e?.data?.data?.phone ?? e?.data?.phone
+    if (requiresOtp && phone) {
+      pendingPhone.value = phone
+      showOtpModal.value = true
+      return
+    }
     errorMessage.value = e?.data?.message ?? e?.message ?? 'Invalid credentials. Please try again.'
   } finally {
     loading.value = false
   }
+}
+
+async function handleOtpVerified() {
+  await navigateTo('/teacher/dashboard')
 }
 </script>
 

@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { useNavStore } from './nav'
 
 interface Profile {
   first_name: string
@@ -56,6 +57,9 @@ export const useAuthStore = defineStore('auth', {
           first_name: res.data.user.profile?.first_name ?? '',
           last_name: res.data.user.profile?.last_name ?? '',
         }
+        try {
+          useNavStore().reset()
+        } catch {}
         return res.data
       } finally {
         this.isLoading = false
@@ -72,6 +76,9 @@ export const useAuthStore = defineStore('auth', {
       this.token = null
       this.user  = null
       this.pendingPhone = null
+      try {
+        useNavStore().reset()
+      } catch {}
     },
 
     async register(payload: {
@@ -160,6 +167,9 @@ export const useAuthStore = defineStore('auth', {
           last_name: res.user.profile?.last_name ?? res.user.last_name ?? '',
         }
         this.pendingPhone = null
+        try {
+          useNavStore().reset()
+        } catch {}
         return res
       } finally {
         this.isLoading = false

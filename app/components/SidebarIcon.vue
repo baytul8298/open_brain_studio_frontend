@@ -39,7 +39,8 @@ const ICONS: Record<string, string> = {
   'book':       '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
   'bell':       '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
   'trending':   '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>',
+  'circle':     '<circle cx="12" cy="12" r="8"/>',
 }
 
-const iconPath = computed(() => ICONS[props.name ?? ''] ?? ICONS['layers'])
+const iconPath = computed(() => ICONS[props.name ?? ''] ?? ICONS['circle'])
 </script>

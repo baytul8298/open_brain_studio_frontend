@@ -64,60 +64,17 @@
 
         <!-- Menu items -->
         <div v-for="menu in group.menus" :key="menu.id">
-          <!-- Item with submenus -->
-          <div v-if="menu.submenus && menu.submenus.length > 0">
-            <button
-              class="sidebar-item w-full"
-              :class="isParentActive(menu) ? 'sidebar-item--active' : ''"
-              :title="!uiStore.sidebarOpen ? menu.name : undefined"
-              @click="toggleExpand(menu.key)"
-            >
-              <span class="sidebar-icon">
-                <SidebarIcon :name="menu.icon_key" />
-              </span>
-              <Transition name="fade-slide">
-                <span v-if="uiStore.sidebarOpen" class="flex-1 text-left text-[0.88rem] whitespace-nowrap overflow-hidden">
-                  {{ menu.name }}
-                </span>
-              </Transition>
-              <Transition name="fade-slide">
-                <svg
-                  v-if="uiStore.sidebarOpen"
-                  class="w-3.5 h-3.5 text-cream/40 transition-transform duration-200"
-                  :class="expandedKeys.has(menu.key) ? 'rotate-90' : ''"
-                  fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
-                >
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
-              </Transition>
-            </button>
-
-            <!-- Submenus -->
-            <Transition name="submenu">
-              <div v-if="expandedKeys.has(menu.key) && uiStore.sidebarOpen" class="ml-8 mt-0.5 space-y-0.5">
-                <NuxtLink
-                  v-for="sub in menu.submenus"
-                  :key="sub.id"
-                  :to="sub.to || '#'"
-                  class="block px-3 py-2 text-[0.82rem] rounded-lg text-cream/55 hover:text-cream hover:bg-white/5 transition-colors duration-150"
-                  :class="isExactActive(sub.to) ? 'text-gold font-medium bg-white/5' : ''"
-                >
-                  {{ sub.name }}
-                </NuxtLink>
-              </div>
-            </Transition>
-          </div>
-
-          <!-- Simple item (no submenus) -->
+          <!-- Menu with a "to/route" value -> clicking takes action -->
           <NuxtLink
-            v-else
-            :to="menu.to || '#'"
+            v-if="hasRoute(menu.to)"
+            :to="resolveHref(menu.to)"
             class="sidebar-item"
             :class="isExactActive(menu.to) ? 'sidebar-item--active' : ''"
             :title="!uiStore.sidebarOpen ? menu.name : undefined"
           >
             <span class="sidebar-icon">
-              <SidebarIcon :name="menu.icon_key" />
+              <i v-if="isClassIcon(menu.icon_key)" :class="getIconClass(menu.icon_key)"></i>
+              <SidebarIcon v-else :name="menu.icon_key" />
             </span>
             <Transition name="fade-slide">
               <span v-if="uiStore.sidebarOpen" class="flex-1 text-[0.88rem] whitespace-nowrap overflow-hidden">
@@ -133,6 +90,70 @@
               </span>
             </Transition>
           </NuxtLink>
+
+          <!-- Item without "to/route" and with submenus -> clicking expands it -->
+          <div v-else-if="menu.submenus && menu.submenus.length > 0">
+            <button
+              class="sidebar-item w-full"
+              :class="isParentActive(menu) ? 'sidebar-item--active' : ''"
+              :title="!uiStore.sidebarOpen ? menu.name : undefined"
+              @click="toggleExpand(String(menu.key || menu.id))"
+            >
+              <span class="sidebar-icon">
+                <i v-if="isClassIcon(menu.icon_key)" :class="getIconClass(menu.icon_key)"></i>
+                <SidebarIcon v-else :name="menu.icon_key" />
+              </span>
+              <Transition name="fade-slide">
+                <span v-if="uiStore.sidebarOpen" class="flex-1 text-left text-[0.88rem] whitespace-nowrap overflow-hidden">
+                  {{ menu.name }}
+                </span>
+              </Transition>
+              <Transition name="fade-slide">
+                <svg
+                  v-if="uiStore.sidebarOpen"
+                  class="w-3.5 h-3.5 text-cream/40 transition-transform duration-200"
+                  :class="expandedKeys.has(String(menu.key || menu.id)) ? 'rotate-90' : ''"
+                  fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </Transition>
+            </button>
+
+            <!-- Submenus -->
+            <Transition name="submenu">
+              <div v-if="expandedKeys.has(String(menu.key || menu.id)) && uiStore.sidebarOpen" class="ml-8 mt-0.5 space-y-0.5">
+                <NuxtLink
+                  v-for="sub in menu.submenus"
+                  :key="sub.id"
+                  :to="resolveHref(sub.to)"
+                  class="flex items-center gap-2 px-3 py-2 text-[0.82rem] rounded-lg text-cream/55 hover:text-cream hover:bg-white/5 transition-colors duration-150"
+                  :class="isExactActive(sub.to) ? 'text-gold font-medium bg-white/5' : ''"
+                >
+                  <i v-if="sub.icon_key && sub.icon_key.trim()" :class="getIconClass(sub.icon_key)"></i>
+                  <i v-else class="bi bi-circle text-[0.5rem]"></i>
+                  <span>{{ sub.name }}</span>
+                </NuxtLink>
+              </div>
+            </Transition>
+          </div>
+
+          <!-- Menu without route and without submenus -->
+          <div
+            v-else
+            class="sidebar-item"
+            :title="!uiStore.sidebarOpen ? menu.name : undefined"
+          >
+            <span class="sidebar-icon">
+              <i v-if="isClassIcon(menu.icon_key)" :class="getIconClass(menu.icon_key)"></i>
+              <SidebarIcon v-else :name="menu.icon_key" />
+            </span>
+            <Transition name="fade-slide">
+              <span v-if="uiStore.sidebarOpen" class="flex-1 text-[0.88rem] whitespace-nowrap overflow-hidden">
+                {{ menu.name }}
+              </span>
+            </Transition>
+          </div>
         </div>
       </div>
     </nav>
@@ -169,15 +190,22 @@ const route     = useRoute()
 
 const expandedKeys = reactive(new Set<string>())
 
-// Fetch menus on mount
-onMounted(() => navStore.fetchMenus())
+// Fetch menus on mount and when auth user/token changes
+onMounted(() => navStore.fetchMenus(true))
+
+watch(
+  () => [authStore.token, authStore.user?.id],
+  () => {
+    navStore.fetchMenus(true)
+  },
+)
 
 // Auto-expand active parent menus
 watch(() => route.path, () => {
   navStore.resolvedMenus.forEach(group => {
     group.menus.forEach(menu => {
-      if (menu.submenus?.some(s => s.to === route.path)) {
-        expandedKeys.add(menu.key)
+      if (menu.submenus?.some(s => isExactActive(s.to))) {
+        expandedKeys.add(String(menu.key || menu.id))
       }
     })
   })
@@ -187,9 +215,43 @@ function toggleExpand(key: string) {
   expandedKeys.has(key) ? expandedKeys.delete(key) : expandedKeys.add(key)
 }
 
-function isExactActive(to: string | null) {
+function hasRoute(to: string | null | undefined): boolean {
   if (!to) return false
-  return route.path === to
+  const trimmed = to.trim()
+  return trimmed !== '' && trimmed !== '#'
+}
+
+function resolveHref(to: string | null | undefined): string {
+  if (!hasRoute(to)) return '#'
+  const trimmed = to!.trim()
+  if (trimmed.startsWith('http') || trimmed.startsWith('/')) return trimmed
+  const rolePrefix = authStore.user?.role === 'teacher' ? '/teacher/' : '/student/'
+  return rolePrefix + trimmed.replace(/^\/+/, '')
+}
+
+function isClassIcon(iconKey: string | null | undefined): boolean {
+  if (!iconKey) return true
+  const t = iconKey.trim()
+  if (!t) return true
+  return t.startsWith('bi') || t.startsWith('fa') || t.includes(' ')
+}
+
+function getIconClass(iconKey: string | null | undefined): string {
+  if (!iconKey) return 'bi bi-circle'
+  const trimmed = iconKey.trim()
+  if (!trimmed) return 'bi bi-circle'
+  if (/\bfa(-|s\b|r\b|b\b|l\b|d\b|\b)/.test(trimmed)) {
+    return trimmed
+  }
+  const cleaned = trimmed.replace(/\bbi\b/g, '').trim()
+  if (!cleaned) return 'bi bi-circle'
+  return cleaned.startsWith('bi-') ? `bi ${cleaned}` : `bi bi-${cleaned}`
+}
+
+function isExactActive(to: string | null) {
+  if (!hasRoute(to)) return false
+  const resolved = resolveHref(to)
+  return route.path === resolved || route.path.startsWith(resolved + '/')
 }
 
 function isParentActive(menu: { to: string | null; submenus: Array<{ to: string | null }> }) {

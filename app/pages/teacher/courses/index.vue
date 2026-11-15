@@ -139,16 +139,16 @@
 import type { ApiResponse, Course } from '../../../types'
 import { useAuthStore } from '../../../stores/auth'
 
-definePageMeta({ layout: 'dashboard' })
+definePageMeta({ layout: 'teacher' })
 useHead({ title: 'My Courses — Open Brain Studio' })
 
 const authStore = useAuthStore()
 
-if (!authStore.isLoggedIn) await navigateTo('/login')
+if (!authStore.isLoggedIn) await navigateTo('/teacher/login')
 
 const { data, pending, refresh } = await useAsyncData('teacher-courses-list', () =>
   $fetch<ApiResponse<Course[]>>('/api/courses', {
-    headers: { Authorization: `Bearer ${authStore.accessToken}` },
+    headers: { Authorization: `Bearer ${authStore.token}` },
     query: { teacher_id: authStore.user?.id, limit: 100 },
   }).catch(() => null),
 )
@@ -168,7 +168,7 @@ async function handleDelete() {
   try {
     await $fetch(`/api/courses/${deletingCourse.value.id}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${authStore.accessToken}` },
+      headers: { Authorization: `Bearer ${authStore.token}` },
     })
     deletingCourse.value = null
     await refresh()

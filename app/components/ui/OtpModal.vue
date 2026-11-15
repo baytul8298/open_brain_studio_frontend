@@ -218,10 +218,9 @@ async function handleVerify() {
     await authStore.verifyOtp(props.phone, otp)
     clearInterval(timerInterval)
     verified.value = true
-    emit('verified')
     setTimeout(() => {
       handleContinue()
-    }, 1200)
+    }, 800)
   } catch (err: unknown) {
     const e = err as { data?: { message?: string }; message?: string }
     errorMessage.value = e?.data?.message ?? e?.message ?? 'Invalid code. Please try again.'
@@ -254,6 +253,7 @@ async function handleResend() {
 // ── Continue to dashboard ──────────────────────────────────────
 function handleContinue() {
   emit('update:modelValue', false)
+  emit('verified')
   const role = authStore.user?.role ?? props.role
   navigateTo(role === 'teacher' ? '/teacher/dashboard' : '/student/dashboard')
 }

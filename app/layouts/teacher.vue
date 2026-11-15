@@ -38,46 +38,56 @@
 
         <!-- Dynamic nav from API -->
         <template v-else v-for="parentMenu in navMenus" :key="parentMenu.id">
-          <div class="sb-section">{{ parentMenu.name }}</div>
+          <template v-if="parentMenu.menus && parentMenu.menus.length > 0">
+            <div class="sb-section">{{ parentMenu.name }}</div>
 
-          <template v-for="menu in parentMenu.menus" :key="menu.id">
-            <!-- Menu with submenus -->
-            <div v-if="menu.submenus && menu.submenus.length > 0">
-              <button
-                class="sb-link sb-link-btn"
-                :class="{ active: hasActiveSubmenu(menu) }"
-                @click="toggleMenu(menu.id)"
+            <template v-for="menu in parentMenu.menus" :key="menu.id">
+              <!-- Menu with a "to/route" value -> clicking takes action -->
+              <NuxtLink
+                v-if="hasRoute(menu.to)"
+                :to="resolveHref(menu.to)"
+                class="sb-link"
+                :class="{ active: isActive(menu.to) }"
               >
-                <i v-if="menu.icon_key" :class="menu.icon_key" class="sb-icon"></i>
+                <i :class="[getIconClass(menu.icon_key), 'sb-icon']"></i>
                 <span>{{ menu.name }}</span>
-                <svg class="sb-chevron" :class="{ rotated: expandedMenus.has(menu.id) }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="6 9 12 15 18 9"/>
-                </svg>
-              </button>
-              <div v-if="expandedMenus.has(menu.id)" class="sb-submenu">
-                <NuxtLink
-                  v-for="sub in menu.submenus"
-                  :key="sub.id"
-                  :to="resolveHref(sub.to)"
-                  class="sb-sublink"
-                  :class="{ active: isActive(sub.to) }"
-                >
-                  <span class="sb-subdot"></span>
-                  <span>{{ sub.name }}</span>
-                </NuxtLink>
-              </div>
-            </div>
+              </NuxtLink>
 
-            <!-- Menu without submenus -->
-            <NuxtLink
-              v-else
-              :to="resolveHref(menu.to)"
-              class="sb-link"
-              :class="{ active: isActive(menu.to) }"
-            >
-              <i v-if="menu.icon_key" :class="menu.icon_key" class="sb-icon"></i>
-              <span>{{ menu.name }}</span>
-            </NuxtLink>
+              <!-- Menu without a "to/route" value and with submenus -> clicking expands it -->
+              <div v-else-if="menu.submenus && menu.submenus.length > 0">
+                <button
+                  type="button"
+                  class="sb-link sb-link-btn"
+                  :class="{ active: hasActiveSubmenu(menu) }"
+                  @click="toggleMenu(menu.id)"
+                >
+                  <i :class="[getIconClass(menu.icon_key), 'sb-icon']"></i>
+                  <span>{{ menu.name }}</span>
+                  <svg class="sb-chevron" :class="{ rotated: expandedMenus.has(menu.id) }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </button>
+                <div v-if="expandedMenus.has(menu.id)" class="sb-submenu">
+                  <NuxtLink
+                    v-for="sub in menu.submenus"
+                    :key="sub.id"
+                    :to="resolveHref(sub.to)"
+                    class="sb-sublink"
+                    :class="{ active: isActive(sub.to) }"
+                  >
+                    <i v-if="sub.icon_key && sub.icon_key.trim()" :class="[getIconClass(sub.icon_key), 'sb-subicon']"></i>
+                    <span v-else class="sb-subdot"></span>
+                    <span>{{ sub.name }}</span>
+                  </NuxtLink>
+                </div>
+              </div>
+
+              <!-- Menu without route and without submenus -->
+              <div v-else class="sb-link">
+                <i :class="[getIconClass(menu.icon_key), 'sb-icon']"></i>
+                <span>{{ menu.name }}</span>
+              </div>
+            </template>
           </template>
         </template>
       </nav>
@@ -107,40 +117,16 @@ useHead({
       rel: 'stylesheet',
       href: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css',
     },
+    {
+      rel: 'stylesheet',
+      href: 'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css',
+    },
   ],
 })
 
 const authStore = useAuthStore()
 const route = useRoute()
 const config = useRuntimeConfig()
-
-// Fallback nav used when the Laravel nav API is unavailable
-const TEACHER_NAV_FALLBACK: NavParent[] = [
-  {
-    id: 0, name: 'Main',
-    menus: [
-      { id: 1, name: 'Dashboard',   icon_key: 'fas fa-house',       to: '/teacher/dashboard' },
-      { id: 2, name: 'My Courses',  icon_key: 'fas fa-book-open',   to: '/teacher/courses' },
-      { id: 3, name: 'Students',    icon_key: 'fas fa-users',        to: '/teacher/students' },
-      { id: 4, name: 'Assignments', icon_key: 'fas fa-clipboard',    to: '/teacher/assignments' },
-    ],
-  },
-  {
-    id: 1, name: 'Growth',
-    menus: [
-      { id: 5, name: 'Analytics',     icon_key: 'fas fa-chart-bar', to: '/teacher/analytics' },
-      { id: 6, name: 'Live Sessions', icon_key: 'fas fa-video',     to: '/teacher/live-sessions' },
-      { id: 7, name: 'Messages',      icon_key: 'fas fa-message',   to: '/teacher/messages' },
-    ],
-  },
-  {
-    id: 2, name: 'Account',
-    menus: [
-      { id: 8, name: 'My Profile', icon_key: 'fas fa-user-circle', to: '/teacher/profile' },
-      { id: 9, name: 'Settings',   icon_key: 'fas fa-gear',        to: '/teacher/settings' },
-    ],
-  },
-]
 
 const user = computed(() => authStore.user as any)
 const userName = computed(() => {
@@ -153,8 +139,8 @@ const userInitials = computed(() => {
 })
 
 // ── Nav menus from API ────────────────────────────────────────────────
-interface NavButton  { id: number; name: string; key_value: string }
-interface NavSubmenu { id: number; name: string; to: string | null; buttons?: NavButton[] }
+interface NavButton  { id: number; name: string; key_value: string; icon_key?: string | null; to?: string | null }
+interface NavSubmenu { id: number; name: string; icon_key?: string | null; to: string | null; buttons?: NavButton[] }
 interface NavMenu    { id: number; name: string; icon_key: string | null; to: string | null; submenus?: NavSubmenu[] }
 interface NavParent  { id: number; name: string; menus: NavMenu[] }
 
@@ -163,28 +149,65 @@ const navLoading = ref(true)
 
 async function fetchNavMenus() {
   if (!authStore.token) {
-    navMenus.value = TEACHER_NAV_FALLBACK
+    navMenus.value = []
     navLoading.value = false
     return
   }
+  navLoading.value = true
   try {
-    const res = await $fetch<{ success: boolean; data: NavParent[] }>(
-      `${config.public.laravelApiUrl}/api/auth/nav-menus`,
-      { headers: { Authorization: `Bearer ${authStore.token}` } },
-    )
-    if (res.success && res.data?.length > 0) {
+    let res: { success: boolean; data: NavParent[] } | null = null
+    try {
+      res = await $fetch<{ success: boolean; data: NavParent[] }>(
+        '/api/auth/nav-menus',
+        { headers: { Authorization: `Bearer ${authStore.token}` } },
+      )
+    } catch {
+      res = await $fetch<{ success: boolean; data: NavParent[] }>(
+        `${config.public.laravelApiUrl}/api/auth/nav-menus`,
+        { headers: { Authorization: `Bearer ${authStore.token}` } },
+      )
+    }
+    if (res && res.success && Array.isArray(res.data)) {
       navMenus.value = res.data
     } else {
-      navMenus.value = TEACHER_NAV_FALLBACK
+      navMenus.value = []
     }
   } catch {
-    navMenus.value = TEACHER_NAV_FALLBACK
+    navMenus.value = []
   } finally {
     navLoading.value = false
   }
 }
 
-onMounted(fetchNavMenus)
+onMounted(() => {
+  fetchNavMenus()
+})
+
+watch(
+  () => [authStore.token, authStore.user?.id],
+  () => {
+    fetchNavMenus()
+  },
+)
+
+// ── Icon & Route helpers ──────────────────────────────────────────────
+function getIconClass(iconKey: string | null | undefined): string {
+  if (!iconKey) return 'bi bi-circle'
+  const trimmed = iconKey.trim()
+  if (!trimmed) return 'bi bi-circle'
+  if (/\bfa(-|s\b|r\b|b\b|l\b|d\b|\b)/.test(trimmed)) {
+    return trimmed
+  }
+  const cleaned = trimmed.replace(/\bbi\b/g, '').trim()
+  if (!cleaned) return 'bi bi-circle'
+  return cleaned.startsWith('bi-') ? `bi ${cleaned}` : `bi bi-${cleaned}`
+}
+
+function hasRoute(to: string | null | undefined): boolean {
+  if (!to) return false
+  const trimmed = to.trim()
+  return trimmed !== '' && trimmed !== '#'
+}
 
 // ── Submenu expand/collapse ───────────────────────────────────────────
 const expandedMenus = ref<Set<number>>(new Set())
@@ -197,33 +220,36 @@ function toggleMenu(id: number) {
 }
 
 function hasActiveSubmenu(menu: NavMenu): boolean {
-  return menu.submenus?.some(s => s.to && isActive(s.to)) ?? false
+  return menu.submenus?.some(s => hasRoute(s.to) && isActive(s.to)) ?? false
 }
 
 // Auto-expand menus that have an active child
-watch(navMenus, () => {
+watch([navMenus, () => route.path], () => {
   navMenus.value.forEach(parent => {
     parent.menus?.forEach(menu => {
       if (hasActiveSubmenu(menu)) expandedMenus.value.add(menu.id)
     })
   })
+  expandedMenus.value = new Set(expandedMenus.value)
 }, { immediate: true })
 
 // ── Routing helpers ───────────────────────────────────────────────────
 function resolveHref(to: string | null): string {
-  if (!to) return '#'
-  if (to.startsWith('http') || to.startsWith('/')) return to
-  return '/teacher/' + to.replace(/^\/+/, '')
+  if (!hasRoute(to)) return '#'
+  const trimmed = to!.trim()
+  if (trimmed.startsWith('http') || trimmed.startsWith('/')) return trimmed
+  return '/teacher/' + trimmed.replace(/^\/+/, '')
 }
 
 function isActive(to: string | null): boolean {
-  if (!to) return false
+  if (!hasRoute(to)) return false
   const resolved = resolveHref(to)
   return route.path === resolved || route.path.startsWith(resolved + '/')
 }
 
 // ── Sign out ──────────────────────────────────────────────────────────
 async function handleLogout() {
+  navMenus.value = []
   await authStore.logout()
   await navigateTo('/teacher/login')
 }
@@ -361,6 +387,9 @@ async function handleLogout() {
 .sb-subdot {
   width: 5px; height: 5px; border-radius: 50%;
   background: currentColor; flex-shrink: 0;
+}
+.sb-subicon {
+  width: 14px; text-align: center; flex-shrink: 0; font-size: .8rem;
 }
 
 /* Loading skeleton */
